@@ -1,0 +1,1 @@
+ALTER TABLE items ADD COLUMN sub_items_json TEXT NOT NULL DEFAULT '[]';

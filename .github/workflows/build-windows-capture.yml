@@ -1,0 +1,37 @@
+name: Build Windows Capture
+
+on:
+  workflow_dispatch:
+
+jobs:
+  build-windows-capture:
+    name: Windows x64 portable capture
+    runs-on: windows-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Setup Rust
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: x86_64-pc-windows-msvc
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Build SeedLog Capture portable exe
+        run: npm run tauri:capture:portable:x64
+
+      - name: Upload portable exe
+        uses: actions/upload-artifact@v4
+        with:
+          name: SeedLog-Capture-Windows-x64
+          path: dist-portable/SeedLog-Capture.exe
+          if-no-files-found: error

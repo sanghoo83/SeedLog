@@ -1,0 +1,22 @@
+{
+  "$schema": "https://schema.tauri.app/config/2",
+  "productName": "SeedLog Capture",
+  "identifier": "com.seedlog.capture",
+  "app": {
+    "windows": [
+      {
+        "label": "main",
+        "title": "SeedLog Capture",
+        "url": "mini.html",
+        "width": 560,
+        "height": 760,
+        "minWidth": 420,
+        "minHeight": 560,
+        "resizable": true,
+        "fullscreen": false,
+        "center": true,
+        "dragDropEnabled": false
+      }
+    ]
+  }
+}

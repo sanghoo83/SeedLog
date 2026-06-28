@@ -1,0 +1,76 @@
+<!doctype html>
+<html lang="ko">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>SeedLog Capture</title>
+    <link rel="stylesheet" href="./mini.css?v=mini-capture-20260602c" />
+    <script type="module" src="./mini.js?v=mini-capture-20260602c"></script>
+  </head>
+  <body>
+    <main class="mini-shell">
+      <header class="mini-header">
+        <div>
+          <p class="eyebrow">SeedLog Mini</p>
+          <h1>Quick Capture</h1>
+          <p class="subtitle">Paste fast. Review clean. Export when ready.</p>
+        </div>
+        <div class="header-meta">
+          <span id="header-date">Today</span>
+          <span id="header-queue">0 captured</span>
+        </div>
+      </header>
+
+      <section class="settings">
+        <label>
+          <span>Date</span>
+          <input id="capture-date" type="date" />
+        </label>
+        <label>
+          <span>Default Context</span>
+          <select id="default-context">
+            <option value="company">회사</option>
+            <option value="personal">개인 업무</option>
+            <option value="learning">학습</option>
+            <option value="idea">아이디어</option>
+            <option value="life">생활/관리</option>
+          </select>
+        </label>
+      </section>
+
+      <textarea id="capture-draft" spellcheck="false" placeholder="AM
+done 0. SO creation for VCP qual + BL3
+tent 3. send email of BMMO2
+4. timesheet
+
+lunch break - API review / git study
+
+PM
+8. expense report
+10. xml comparer improvement idea - check the document xsd version too"></textarea>
+
+      <section class="actions">
+        <button id="save-queue" class="primary">Capture</button>
+        <button id="download-json">Export</button>
+        <button id="copy-json">Copy</button>
+        <button id="clear-queue" class="danger">Reset</button>
+      </section>
+
+      <section class="status-bar">
+        <span id="queue-count">0 queued</span>
+        <span id="status-text">Ready</span>
+      </section>
+
+      <section class="preview">
+        <div class="section-title">
+          <div>
+            <p class="eyebrow">Parsed My Day</p>
+            <h2>Review before capture</h2>
+          </div>
+          <span id="preview-count">0 items</span>
+        </div>
+        <div id="preview-list" class="preview-list"></div>
+      </section>
+    </main>
+  </body>
+</html>

@@ -1,0 +1,24 @@
+{
+  "name": "seedlog",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "build:frontend": "node build-frontend.mjs",
+    "dev:frontend": "node dev-server.mjs",
+    "tauri": "tauri",
+    "tauri:dev": "tauri dev",
+    "tauri:build": "tauri build",
+    "tauri:capture:dev": "tauri dev --config src-tauri/tauri.capture.conf.json",
+    "tauri:capture:build": "tauri build --config src-tauri/tauri.capture.conf.json",
+    "tauri:capture:portable": "node build-capture-portable.mjs",
+    "tauri:capture:portable:x64": "node build-capture-portable.mjs --target x86_64-pc-windows-msvc"
+  },
+  "devDependencies": {
+    "@tauri-apps/cli": "^2.0.0"
+  },
+  "dependencies": {
+    "@tauri-apps/api": "^2.0.0",
+    "@tauri-apps/plugin-sql": "^2.4.0"
+  }
+}
