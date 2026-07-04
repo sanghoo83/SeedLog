@@ -13,7 +13,8 @@ const AUX_STATE_KEYS = [
   "reflectionCoaches",
 ];
 const PROJECTS_MIGRATION_KEY = "seedlog.projects.migrated.v1";
-const APP_BUILD = "auto-sync-20260628";
+const SOURCE_TAG_MIGRATION_KEY = "seedlog.sourceTag.migrated.v1";
+const APP_BUILD = "review-p2p3-20260628";
 
 const KoreanDate = new Intl.DateTimeFormat("ko-KR", {
   month: "long",
@@ -655,6 +656,7 @@ async function initializeStorage() {
   state.projects = await repository.loadProjects();
   await migrateLegacyIdeas();
   await migrateThreadProjects();
+  await migrateLegacySourceTags();
   saveUiState();
   render();
 
@@ -664,6 +666,34 @@ async function initializeStorage() {
     startAutoSyncTimer();
     window.setTimeout(() => syncNow({ silent: true }), 600);
   }
+}
+
+// One-time: heal items created before the sourceTag field existed — their
+// provenance was baked into item.text as a literal prefix ("[학습] ...",
+// "Signal idea: ..."). Move it into sourceTag and strip the prefix from the
+// text so it's clean and safely user-editable everywhere it's displayed.
+const LEGACY_SOURCE_TEXT_PATTERNS = [
+  { re: /^\[학습\]\s*/, tag: "learning" },
+  { re: /^\[신호\]\s*/, tag: "signal" },
+  { re: /^프로젝트 연결:\s*/, tag: "project-bridge" },
+  { re: /^Signal idea:\s*/, tag: "signal-idea" },
+];
+
+async function migrateLegacySourceTags() {
+  if (localStorage.getItem(SOURCE_TAG_MIGRATION_KEY)) return;
+  const now = new Date().toISOString();
+  const touched = [];
+  for (const item of state.items) {
+    if (item.sourceTag) continue;
+    const match = LEGACY_SOURCE_TEXT_PATTERNS.find(({ re }) => re.test(item.text));
+    if (!match) continue;
+    item.text = item.text.replace(match.re, "");
+    item.sourceTag = match.tag;
+    item.updatedAt = now;
+    touched.push(item);
+  }
+  if (touched.length) await repository.upsertItems(touched);
+  localStorage.setItem(SOURCE_TAG_MIGRATION_KEY, "true");
 }
 
 // One-time: turn the previously thread-derived projects (PRJ brief + the
@@ -815,8 +845,8 @@ const UPSERT_ITEM_SQL = `
   INSERT INTO items
     (id, text, date, status, type, horizon, lane, importance, momentum, context,
      time_block, daily_priority, keywords_json, created_at, updated_at, completed_at, manual_order, sub_items_json,
-     pipeline, lane_moved_at, last_forward_at, defer_count, defer_reason, deleted_at)
-  VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21, $22, $23, $24)
+     pipeline, lane_moved_at, last_forward_at, defer_count, defer_reason, deleted_at, source_tag)
+  VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21, $22, $23, $24, $25)
   ON CONFLICT(id) DO UPDATE SET
     text = excluded.text,
     date = excluded.date,
@@ -839,7 +869,8 @@ const UPSERT_ITEM_SQL = `
     last_forward_at = excluded.last_forward_at,
     defer_count = excluded.defer_count,
     defer_reason = excluded.defer_reason,
-    deleted_at = excluded.deleted_at`;
+    deleted_at = excluded.deleted_at,
+    source_tag = excluded.source_tag`;
 
 async function upsertItemRows(db, items) {
   for (const item of items) {
@@ -1389,6 +1420,7 @@ function itemToRowValues(item) {
     Number.isFinite(Number(item.deferCount)) ? Number(item.deferCount) : 0,
     item.deferReason || null,
     item.deletedAt || null,
+    item.sourceTag || null,
   ];
 }
 
@@ -1418,6 +1450,7 @@ function rowToItem(row) {
     deferCount: Number(row.defer_count) || 0,
     deferReason: row.defer_reason || null,
     deletedAt: row.deleted_at || null,
+    sourceTag: row.source_tag || null,
   };
   return normalizeItem(item);
 }
@@ -1450,6 +1483,10 @@ function normalizeItem(item) {
     laneMovedAt: item.laneMovedAt || item.lane_moved_at || item.createdAt || item.created_at || now,
     lastForwardAt: item.lastForwardAt || item.last_forward_at || null,
     deletedAt: item.deletedAt || item.deleted_at || null,
+    // Where a seed/bridge item came from (학습/신호/신호아이디어/프로젝트연결) — a
+    // real field instead of a text prefix, so item.text stays pristine and
+    // user-editable. null for native Today/아이디어 items.
+    sourceTag: item.sourceTag || item.source_tag || null,
   };
   const analysis = analyzeItem(normalized.text, normalized);
   return {
@@ -2691,7 +2728,7 @@ async function learningCourseToCultivation(trackId, courseId) {
   const found = findLearningCourse(tracks, trackId, courseId);
   const course = found?.course;
   if (!course) return;
-  await captureSeed(`[학습] ${course.title} — 적용·확장하기`);
+  await captureSeed(`${course.title} — 적용·확장하기`, { sourceTag: "learning" });
 }
 
 async function createBridgeItem(bridge) {
@@ -2699,12 +2736,13 @@ async function createBridgeItem(bridge) {
   const now = new Date().toISOString();
   const item = normalizeItem({
     id: uid("bridge"),
-    text: `프로젝트 연결: ${bridge.projectTitle ? `${bridge.projectTitle} · ` : ""}${bridge.title} · ${bridge.text}`,
+    text: `${bridge.projectTitle ? `${bridge.projectTitle} · ` : ""}${bridge.title} · ${bridge.text}`,
     date: state.selectedDate,
     status: "open",
     createdAt: now,
     updatedAt: now,
     completedAt: null,
+    sourceTag: "project-bridge",
   });
   item.type = bridge.itemType || "task";
   item.horizon = bridge.horizon || "short";
@@ -5273,13 +5311,29 @@ function renderMobile() {
   watchMobileBreakpoint();
   if (!["today", "cultivate", "idea"].includes(state.mobileTab)) state.mobileTab = "today";
   const app = document.querySelector("#app");
-  const body = state.mobileWrapup
-    ? renderMobileWrapup()
-    : state.mobileTab === "idea"
-      ? renderMobileIdea()
-      : state.mobileTab === "cultivate"
-        ? renderMobileCultivate()
-        : renderMobileToday();
+  // Same crash containment as desktop render(): one bad sub-renderer must not
+  // white-screen the phone — this is the primary satellite-capture surface.
+  let body;
+  try {
+    body = state.mobileWrapup
+      ? renderMobileWrapup()
+      : state.mobileTab === "idea"
+        ? renderMobileIdea()
+        : state.mobileTab === "cultivate"
+          ? renderMobileCultivate()
+          : renderMobileToday();
+  } catch (err) {
+    console.error(`renderMobile: "${state.mobileTab}" 탭 렌더 실패`, err);
+    state.mobileWrapup = false;
+    body = `
+      <div class="view-error">
+        <h2>이 화면을 그리는 중 문제가 생겼어요</h2>
+        <p class="muted">다른 탭은 정상이에요.</p>
+        <pre class="view-error-detail">${escapeHtml(String(err && err.stack ? err.stack : err))}</pre>
+        <button class="primary-button" data-mtab="today">Today로 돌아가기</button>
+      </div>
+    `;
+  }
   app.innerHTML = `
     <div class="m-shell">
       ${renderMobileTopbar()}
@@ -5553,7 +5607,7 @@ function renderMobileCapture() {
 }
 
 // Quick-capture straight into the cultivation pipeline at 씨앗 (now).
-async function captureSeed(rawText) {
+async function captureSeed(rawText, opts = {}) {
   const text = String(rawText || "").trim();
   if (!text) return;
   const now = new Date().toISOString();
@@ -5577,6 +5631,7 @@ async function captureSeed(rawText) {
     laneMovedAt: now,
     lastForwardAt: null,
     subItems: [],
+    sourceTag: opts.sourceTag || null,
   };
   state.items = [item, ...state.items];
   await repository.upsertItems([item]);
@@ -5740,10 +5795,13 @@ function bindMobileEvents() {
     });
   });
 
-  // 빠른 캡처 (A-3)
+  // 빠른 캡처 (A-3). Defaults to 씨앗 — Today/아이디어 탭엔 이미 자체 인라인
+  // 추가 입력창이 있어서, FAB는 그 둘과 안 겹치는 고유 역할(씨앗 직행)로
+  // 열리게 한다. 재배 탭엔 인라인 입력이 아예 없어 여기서도 자연스러운 기본값.
   document.querySelectorAll("[data-mcapture-open]").forEach((btn) => {
     btn.addEventListener("click", () => {
       state.mobileCapture = true;
+      state.mobileCaptureTarget = "seed";
       render();
     });
   });
@@ -7296,9 +7354,18 @@ function renderGoals() {
   `;
 }
 
-// Derive where a seed came from (no stored field — read the prefix/type so the
-// capture influx is legible without a data-model change).
+// Derive where a seed came from. Prefers the sourceTag field; falls back to
+// sniffing legacy text prefixes for items created before that field existed
+// (migrateLegacySourceTags cleans those up once, so this fallback is mostly
+// dead weight going forward — kept only as a defensive no-op).
 function deriveSeedSource(item) {
+  const bySourceTag = {
+    learning: { label: "학습", cls: "src-learning" },
+    signal: { label: "Signals", cls: "src-signal" },
+    "signal-idea": { label: "Signals", cls: "src-signal" },
+    "project-bridge": { label: "학습", cls: "src-learning" },
+  }[item.sourceTag];
+  if (bySourceTag) return bySourceTag;
   const text = String(item.text || "");
   if (text.startsWith("[학습]")) return { label: "학습", cls: "src-learning" };
   if (text.startsWith("[신호]")) return { label: "Signals", cls: "src-signal" };
@@ -10574,7 +10641,7 @@ async function saveSignalAsIdea(index) {
   const now = new Date().toISOString();
   const item = normalizeItem({
     id: uid("idea"),
-    text: `Signal idea: ${signal.title} · ${signal.detail}`,
+    text: `${signal.title} · ${signal.detail}`,
     date: getTodayKey(),
     status: "open",
     type: "idea",
@@ -10589,6 +10656,7 @@ async function saveSignalAsIdea(index) {
     createdAt: now,
     updatedAt: now,
     completedAt: null,
+    sourceTag: "signal-idea",
   });
   state.items = [item, ...state.items];
   await repository.upsertItems([item]);
@@ -10603,7 +10671,7 @@ async function signalToCultivation(index) {
   const signal = currentSignals()[Number(index)];
   if (!signal) return;
   const theme = (signal.keywords || [])[0] || signal.title;
-  await captureSeed(`[신호] ${theme} — 키워보기`);
+  await captureSeed(`${theme} — 키워보기`, { sourceTag: "signal" });
 }
 
 async function createSignalTodayExperiment(index) {
@@ -12001,7 +12069,7 @@ function bindEvents() {
   document.querySelectorAll("[data-concept-seed]").forEach((button) => {
     button.addEventListener("click", (event) => {
       event.stopPropagation();
-      captureSeed(`[학습] "${button.dataset.conceptSeed}" 막힘 뚫기`);
+      captureSeed(`"${button.dataset.conceptSeed}" 막힘 뚫기`, { sourceTag: "learning" });
     });
   });
 

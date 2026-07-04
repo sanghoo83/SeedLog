@@ -4,7 +4,7 @@ use tauri_plugin_sql::{Migration, MigrationKind};
 // When you add a new migrations/NNN_*.sql file you MUST also add it to the
 // `migrations` vec below AND increment this constant, or the build will fail.
 // That makes it impossible to silently forget the registration step.
-const EXPECTED_MIGRATION_COUNT: usize = 15;
+const EXPECTED_MIGRATION_COUNT: usize = 16;
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
@@ -97,6 +97,12 @@ pub fn run() {
             version: 15,
             description: "add_item_deleted_at",
             sql: include_str!("../migrations/015_add_item_deleted_at.sql"),
+            kind: MigrationKind::Up,
+        },
+        Migration {
+            version: 16,
+            description: "add_item_source_tag",
+            sql: include_str!("../migrations/016_add_item_source_tag.sql"),
             kind: MigrationKind::Up,
         },
     ];

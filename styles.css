@@ -99,13 +99,16 @@ button {
 }
 
 .nav {
-  display: inline-flex;
+  display: flex;
   justify-self: center;
   padding: 3px;
-  gap: 4px;
+  gap: 3px;
   border: 1px solid var(--line);
   border-radius: 9px;
   background: #eee9df;
+  max-width: 100%;
+  overflow-x: auto;
+  scrollbar-width: thin;
 }
 
 .nav button,
@@ -123,9 +126,10 @@ button {
 }
 
 .nav button {
-  min-width: 100px;
+  flex-shrink: 0;
+  min-width: 84px;
   min-height: 36px;
-  padding: 0 13px;
+  padding: 0 10px;
   color: var(--muted);
   font-weight: 620;
 }
